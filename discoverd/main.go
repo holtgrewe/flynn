@@ -99,7 +99,7 @@ func (m *Main) Run(args ...string) error {
 
 	target := fmt.Sprintf("http://%s:1111", opt.Host)
 	m.logger.Println("checking for existing discoverd process at", target)
-	if err := discoverd.NewClientWithHTTP(target, &http.Client{}).Ping(); err == nil {
+	if err := discoverd.DefaultClient.Ping(target); err == nil {
 		m.logger.Println("discoverd responding at", target, "taking over")
 
 		// update DISCOVERD environment variable so that the default
@@ -129,7 +129,7 @@ func (m *Main) Run(args ...string) error {
 		}
 		m.logger.Printf("discoverd listening for DNS on %s", addr)
 
-		shutdownInfo, err = discoverd.NewClientWithURL(target).Shutdown()
+		shutdownInfo, err = discoverd.DefaultClient.Shutdown(target)
 		if err != nil {
 			return err
 		}
