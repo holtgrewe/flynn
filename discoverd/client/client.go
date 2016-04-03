@@ -180,6 +180,14 @@ func (c *Client) Shutdown() (res dt.ShutdownInfo, err error) {
 	return res, c.c.Post("/shutdown", nil, &res)
 }
 
+func (c *Client) Promote() error {
+	return c.c.Post("/raft/promote", nil, nil)
+}
+
+func (c *Client) Demote() error {
+	return c.c.Post("/raft/demote", nil, nil)
+}
+
 func (c *Client) RaftLeader() (res dt.RaftLeader, err error) {
 	return res, c.c.Get("/raft/leader", &res)
 }

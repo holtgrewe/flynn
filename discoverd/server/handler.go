@@ -23,11 +23,14 @@ import (
 const StreamBufferSize = 64 // TODO: Figure out how big this buffer should be.
 
 // NewHandler returns a new instance of Handler.
-func NewHandler() *Handler {
+func NewHandler(proxy bool, peers []string) *Handler {
 	r := httprouter.New()
 
 	h := &Handler{Handler: r}
 	h.Shutdown.Store(false)
+
+	h.Peers = peers
+	h.Proxy.Store(proxy)
 
 	if os.Getenv("DEBUG") != "" {
 		h.Handler = hh.ContextInjector("discoverd", hh.NewRequestLogger(h.Handler))
@@ -52,11 +55,12 @@ func NewHandler() *Handler {
 	r.GET("/raft/leader", h.serveGetRaftLeader)
 	r.PUT("/raft/peers/:peer", h.servePutRaftPeer)
 	r.DELETE("/raft/peers/:peer", h.serveDeleteRaftPeer)
+	r.POST("/raft/promote", h.servePromote)
+	r.POST("/raft/demote", h.serveDemote)
 
 	r.GET("/ping", h.servePing)
 
 	r.POST("/shutdown", h.serveShutdown)
-
 	return h
 }
 
@@ -64,8 +68,11 @@ func NewHandler() *Handler {
 type Handler struct {
 	http.Handler
 	Shutdown atomic.Value // bool
+	Proxy    atomic.Value // bool
 	Main     interface {
 		Close() (dt.ShutdownInfo, error)
+		Promote() error
+		Demote() error
 	}
 	Store interface {
 		Leader() string
@@ -84,11 +91,19 @@ type Handler struct {
 		AddPeer(peer string) error
 		RemovePeer(peer string) error
 	}
+	Peers []string
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if h.Shutdown.Load().(bool) {
 		hh.Error(w, ErrShutdown)
+		return
+	}
+	// If running in proxy mode then redirect requests to a random peer
+	if h.Proxy.Load().(bool) && r.URL.Path != "/promote" && r.Method != "POST" {
+		// TODO(jpg): Should configuring the node in proxy mode with no peers be impossible?
+		host := h.Peers[rand.Intn(len(h.Peers))]
+		redirectToHost(w, r, host)
 		return
 	}
 	h.Handler.ServeHTTP(w, r)
@@ -335,6 +350,22 @@ func (h *Handler) serveShutdown(w http.ResponseWriter, r *http.Request, params h
 	hh.JSON(w, 200, lastIdx)
 }
 
+// servePromote attempts to premote this discoverd node to a raft peer
+func (h *Handler) servePromote(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+	if err := h.Main.Promote(); err != nil {
+		hh.Error(w, err)
+		return
+	}
+}
+
+// serveDemote attempts to demote this peer from a raft node to a proxy
+func (h *Handler) serveDemote(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+	if err := h.Main.Demote(); err != nil {
+		hh.Error(w, err)
+		return
+	}
+}
+
 // serveStream creates a subscription and streams out events in SSE format.
 func (h *Handler) serveStream(w http.ResponseWriter, params httprouter.Params, kind discoverd.EventKind) {
 	// Create a buffered channel to receive events.
@@ -405,17 +436,6 @@ func (h *Handler) redirectToLeader(w http.ResponseWriter, r *http.Request) {
 	}
 
 	redirectToHost(w, r, leader)
-}
-
-// ProxyHandler proxies all requests to a random peer.
-type ProxyHandler struct {
-	Peers []string
-}
-
-// ServeHTTP redirects all requests to a random peer.
-func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	host := h.Peers[rand.Intn(len(h.Peers))]
-	redirectToHost(w, r, host)
 }
 
 func redirectToHost(w http.ResponseWriter, r *http.Request, hostport string) {

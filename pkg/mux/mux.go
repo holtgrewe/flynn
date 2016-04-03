@@ -15,6 +15,7 @@ import (
 
 // Mux represents a multiplexer for a net.Listener.
 type Mux struct {
+	mu   sync.Mutex
 	ln   net.Listener
 	once sync.Once
 	wg   sync.WaitGroup
@@ -85,6 +86,8 @@ func (mux *Mux) Serve() error {
 }
 
 func (mux *Mux) handleConn(conn net.Conn) error {
+	mux.mu.Lock()
+	defer mux.mu.Unlock()
 	// Wrap in a buffered connection in order to peek at the first byte.
 	bufConn := newBufConn(conn)
 
@@ -119,6 +122,8 @@ func (mux *Mux) handleConn(conn net.Conn) error {
 
 // Listen returns a listener that receives connections from any byte in hdrs.
 func (mux *Mux) Listen(hdrs []byte) net.Listener {
+	mux.mu.Lock()
+	defer mux.mu.Unlock()
 	// Create new handler.
 	h := mux.handler()
 
@@ -162,7 +167,17 @@ func (h *handler) Accept() (c net.Conn, err error) {
 
 // Close closes the original listener.
 func (h *handler) Close() error {
-	h.once.Do(func() { close(h.c) })
+	h.once.Do(func() {
+		h.mux.mu.Lock()
+		defer h.mux.mu.Unlock()
+		// delete all references to this handler from the mux
+		for k, v := range h.mux.handlers {
+			if v == h {
+				delete(h.mux.handlers, k)
+			}
+		}
+		close(h.c)
+	})
 	return nil
 }
 
