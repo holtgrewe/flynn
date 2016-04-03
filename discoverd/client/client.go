@@ -184,6 +184,14 @@ func (c *Client) RaftLeader() (res dt.RaftLeader, err error) {
 	return res, c.c.Get("/raft/leader", &res)
 }
 
+func (c *Client) RaftAddPeer(addr string) error {
+	return c.c.Put(fmt.Sprintf("/raft/peers/%s", addr), nil, nil)
+}
+
+func (c *Client) RaftRemovePeer(addr string) error {
+	return c.c.Delete(fmt.Sprintf("/raft/peers/%s", addr))
+}
+
 type service struct {
 	client *Client
 	name   string

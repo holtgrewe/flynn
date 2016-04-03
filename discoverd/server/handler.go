@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"math/rand"
 	"net"
 	"net/http"
@@ -49,8 +50,8 @@ func NewHandler() *Handler {
 	r.GET("/services/:service/leader", h.serveGetLeader)
 
 	r.GET("/raft/leader", h.serveGetRaftLeader)
-	r.POST("/raft/nodes", h.servePostRaftNodes)
-	r.DELETE("/raft/nodes", h.serveDeleteRaftNodes)
+	r.PUT("/raft/peers/:peer", h.servePutRaftPeer)
+	r.DELETE("/raft/peers/:peer", h.serveDeleteRaftPeer)
 
 	r.GET("/ping", h.servePing)
 
@@ -366,28 +367,32 @@ func (h *Handler) serveGetRaftLeader(w http.ResponseWriter, r *http.Request, par
 	hh.JSON(w, 200, dt.RaftLeader{Host: h.Store.Leader()})
 }
 
-// servePostRaftNodes joins a node to the store cluster.
-func (h *Handler) servePostRaftNodes(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
-	addr := r.FormValue("addr")
-	if err := h.Store.AddPeer(addr); err == ErrNotLeader {
+// servePutRaftNodes joins a peer to the store cluster.
+func (h *Handler) servePutRaftPeer(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+	peer := params.ByName("peer")
+	if err := h.Store.AddPeer(peer); err == ErrNotLeader {
+		fmt.Printf("redirecting add peer to leader")
 		h.redirectToLeader(w, r)
 		return
 	} else if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		hh.Error(w, err)
 		return
 	}
+	fmt.Printf("processed add peer successfully")
 }
 
 // serveDeleteRaftNodes removes a node to the store cluster.
-func (h *Handler) serveDeleteRaftNodes(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
-	addr := r.FormValue("addr")
-	if err := h.Store.RemovePeer(addr); err == ErrNotLeader {
+func (h *Handler) serveDeleteRaftPeer(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+	peer := params.ByName("peer")
+	if err := h.Store.RemovePeer(peer); err == ErrNotLeader {
+		fmt.Printf("redirecting remove peer to leader")
 		h.redirectToLeader(w, r)
 		return
 	} else if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		hh.Error(w, err)
 		return
 	}
+	fmt.Printf("processed remove peer successfully")
 }
 
 // redirectToLeader redirects the request to the current known leader.

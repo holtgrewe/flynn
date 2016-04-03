@@ -312,12 +312,20 @@ func (s *Store) isLeader() bool { return s.raft.Leader() == s.Advertise.String()
 
 // AddPeer adds a peer to the raft cluster. Panic if store is not open yet.
 func (s *Store) AddPeer(peer string) error {
-	return s.raft.AddPeer(peer).Error()
+	err := s.raft.AddPeer(peer).Error()
+	if err == raft.ErrNotLeader {
+		err = ErrNotLeader
+	}
+	return err
 }
 
 // RemovePeer removes a peer from the raft cluster. Panic if store is not open yet.
 func (s *Store) RemovePeer(peer string) error {
-	return s.raft.RemovePeer(peer).Error()
+	err := s.raft.RemovePeer(peer).Error()
+	if err == raft.ErrNotLeader {
+		err = ErrNotLeader
+	}
+	return err
 }
 
 // SetPeers sets a list of peers in the raft cluster. Panic if store is not open yet.
