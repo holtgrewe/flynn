@@ -22,11 +22,10 @@ over HTTP. Since most developers are already familiar with HTTP and almost every
 language already has great HTTP support, taking advantage of Flynn's APIs is
 easier than yet another RPC protocol.
 
-We target the latest LTS release of Ubuntu amd64 as our base operating system.
-Flynn has no hard dependencies on a specific Linux distribution, but experience
-shows that the differences between distros are time-consuming to support and
-irrelevant to our goals, so we have chosen a single common configuration to
-support.
+We target the Ubuntu 14.04 LTS amd64 as our base operating system. Flynn has no
+hard dependencies on a specific Linux distribution, but experience shows that
+the differences between distros are time-consuming to support and irrelevant to
+our goals, so we have chosen a single common configuration to support.
 
 ## flynn-host
 
@@ -77,8 +76,8 @@ discoverd's HTTP API to find and communicate with each other.
 ## flannel
 
 An overlay network is automatically configured using the Linux kernel's native
-support for VXLAN. Each host in the cluster is assigned an /24 block of IPv4
-addresses and registered in discoverd.
+support for VXLAN encapsulation of Layer 2 frames over UDP. Each host in the
+cluster is assigned an /24 block of IPv4 addresses and registered in discoverd.
 
 IPs from the block are allocated to each job that is started by flynn-host.
 Routes are configured by flannel that route all inter-container communication to
@@ -155,15 +154,15 @@ to convert application source code into a runnable artifact called a *slug*.
 This slug is a tarball of the app and all of it's dependencies, which can be run
 by the *slugrunner* component.
 
-Flynn is designed to be support a variety of deployment pipelines, so the
-buildpack support is not special or hard-coded, it just uses controller APIs to
-do the deploy.
+Flynn is designed to support a variety of deployment pipelines, so the buildpack
+support is not special or hard-coded, it just uses controller APIs to do the
+deploy.
 
 ### gitreceive
 
 Git pushes are received over HTTPS by the gitreceive component which spawns
 a receiver that starts a new *slugbuilder* job to process the build. If the repo
-has been pushed before, a cached archive of the repo downloaded from the
+has been pushed before, a cached archive of the repo will be downloaded from the
 *blobstore* before receiving the git push.
 
 ### slugbuilder
@@ -190,9 +189,9 @@ application from the slug.
 
 ## Log Aggregator
 
-The logaggregator receives syslog-formatted streams with log lines from jobs
-running on each flynn-host instance containing and buffers recent log lines for
-each app.
+The logaggregator takes log lines from jobs running on each host and buffers
+recent log lines for each app. The lines are sent from flynn-host as
+FC6587-framed RFC5424 syslog messages over TCP.
 
 Clients can get live streams of aggregated logs, and retrieve previous log
 messages without sending requests to every host individually.
