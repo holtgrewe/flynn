@@ -153,6 +153,16 @@ components at `http://status.$CLUSTER_DOMAIN` (for example,
 along with a more detailed JSON response. If any core components are unhealthy,
 the HTTP status will be 500.
 
+Requests to the status endpoint require a `key` parameter (example:
+`http://status.1.localflynn.com/?key=$AUTH_KEY`) when they come from IP
+addresses that are not reserved for private use.
+
+The `$AUTH_KEY` may be retrieved with this command:
+
+```text
+flynn -a status env get AUTH_KEY
+```
+
 ## Debugging
 
 Flynn is a self-hosting system, this allows you to use the `flynn` and
